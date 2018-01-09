@@ -1,3 +1,7 @@
+/*
+this code has been writted following Toeshiro Novisu tutorial https://youtu.be/BAkGm02WBc0
+* */
+
 package com.example.ale.mqttclient;
 
 import android.media.Ringtone;
