@@ -1,2 +1,2 @@
 # MQTTClient_Android
-Android Studio proyect Paho MQTT Android Service
+Android Studio project Paho MQTT Android Service
