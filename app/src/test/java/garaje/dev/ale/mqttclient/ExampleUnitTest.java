@@ -1,4 +1,4 @@
-package com.example.ale.mqttclient;
+package garaje.dev.ale.mqttclient;
 
 import org.junit.Test;
 

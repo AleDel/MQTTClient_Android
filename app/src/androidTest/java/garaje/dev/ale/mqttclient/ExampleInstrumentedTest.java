@@ -1,4 +1,4 @@
-package com.example.ale.mqttclient;
+package garaje.dev.ale.mqttclient;
 
 import android.content.Context;
 import android.support.test.InstrumentationRegistry;
