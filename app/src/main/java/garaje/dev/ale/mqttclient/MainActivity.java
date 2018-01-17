@@ -5,6 +5,8 @@
 package garaje.dev.ale.mqttclient;
 
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -16,15 +18,18 @@ import android.nfc.NfcAdapter;
 import android.os.Build;
 import android.os.PowerManager;
 import android.os.Vibrator;
+import android.preference.PreferenceManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.Menu;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -50,8 +55,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private static final String TAG = "MyActivity_mqttclient";
 
-    //static String MQTTHOST = "tcp://0.tcp.ngrok.io:18538";
-    static String MQTTHOST = "tcp://192.168.1.36:1883";
+    static String MQTTHOST = "tcp://0.tcp.ngrok.io:18538";
+    //static String MQTTHOST = "tcp://192.168.0.165:1883";
     static String USERNAME = "";
     static String PASSWORD = "";
 
@@ -64,6 +69,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     TextView textViewcoor;
     EditText editTextTopic;
     EditText editTextMensaje;
+    Button configButton;
 
     Vibrator vibrator;
     Ringtone myRingTone;
@@ -78,6 +84,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     public SensorManager mSensorManager;
     public Sensor sensor;
 
+    public static final String KEY_PREF_HOST = "host_text_preference";
+    public static final String KEY_PREF_PORT = "port_text_preference";
+
     public void register() {
         // TODO Auto-generated method stub
         mSensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
@@ -88,7 +97,21 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     protected String getAccelerometerReading() {
-        return String.format("%7f" + ", %7f" + ", %7f", acclX, acclY, acclZ);
+        return String.format("%7f" + ": %7f" + ": %7f", acclX, acclY, acclZ);
+    }
+
+    private void refreshDatosHost(){
+        SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
+        String hostPref = sharedPref.getString(MainActivity.KEY_PREF_HOST, "");
+        String portPref = sharedPref.getString(MainActivity.KEY_PREF_PORT, "");
+        MQTTHOST = "tcp://"+hostPref+":"+portPref;
+        Toast.makeText(this, MQTTHOST.toString(),Toast.LENGTH_LONG).show();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refreshDatosHost();
     }
 
     @Override
@@ -114,6 +137,15 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             }
         });
 
+        configButton = findViewById(R.id.button_config);
+        configButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+                startActivity(intent);
+            }
+        });
+
 
         vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
 
@@ -127,40 +159,24 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         myRingTone = RingtoneManager.getRingtone(getApplicationContext(), uri);
 
 
+        /*SharedPreferences mSharedPref = getSharedPreferences("HostConfig", MODE_PRIVATE);
+        SharedPreferences.Editor mEditor = mSharedPref.edit();
+        mEditor.putString("host", "ghghjgj");
+        mEditor.apply();*/
+
+        PreferenceManager.setDefaultValues(this, R.xml.preferences, false);
+
+        refreshDatosHost();
+
         clientId = MqttClient.generateClientId();
         client = new MqttAndroidClient(this.getApplicationContext(), MQTTHOST, clientId);
+        Toast.makeText(this,clientId.toString(),Toast.LENGTH_LONG).show();
 
         isConnected = false;
-        //MqttConnectOptions options = new MqttConnectOptions();
-        //options.setUserName(USERNAME);
-        //options.setPassword(PASSWORD.toCharArray());
+
 
         // conecta con el broker
-        try {
-            //IMqttToken token = client.connect(options);
-
-            IMqttToken token = client.connect();
-            token.setActionCallback(new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    Toast.makeText(MainActivity.this, "Conectado", Toast.LENGTH_LONG).show();
-                    isConnected = true;
-                    texserver.setText("server online");
-                    // se subscribe a a si mismo topic y al grupo
-                    setSubscription();
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Toast.makeText(MainActivity.this, "Conección falló", Toast.LENGTH_LONG).show();
-                    isConnected = false;
-
-
-                }
-            });
-        } catch (MqttException e) {
-            e.printStackTrace();
-        }
+        connectToServer();
 
 
         client.setCallback(new MqttCallback() {
@@ -175,9 +191,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 if (topic.equals("dispositivos/chat")) {
                     textchat.append(new String(message.getPayload()) + "\n");
                     //textchat.setText(new String(message.getPayload())+"topic: "+ topic );
-                    //vibrator.vibrate(500);
-                    //myRingTone.play();
-                } else if (topic.equals("$SYS/broker/connection/#")) {
+                    vibrator.vibrate(500);
+                    myRingTone.play();
+                } else if (topic.equals("$SYS/broker/clients/connected")) {
                     textchat.append(new String(message.getPayload()) + "\n");
                     Log.v(TAG, "indexdddd=" + message);
                 } else if (topic == topicStr + "/sensor") {
@@ -225,9 +241,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     }
 
+
+
     public void pub(View v) {
         String topic = editTextTopic.getText().toString();
-        String message = editTextMensaje.getText().toString();
+        String message = clientId+":--> "+editTextMensaje.getText().toString();
 
         if (isConnected) {
             try {
@@ -260,12 +278,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         if (isConnected) {
             try {
                 client.unsubscribe(topic);
-                Toast.makeText(MainActivity.this, "Te has Unsubscrito a:" + topic, Toast.LENGTH_LONG).show();
+                Toast.makeText(MainActivity.this, "Te has Unsubscrito de:" + topic, Toast.LENGTH_LONG).show();
             } catch (MqttException e) {
                 e.printStackTrace();
             }
         } else {
-            Toast.makeText(MainActivity.this, "No estas conectado, no se puede Unsuscribir a:" + topic, Toast.LENGTH_LONG).show();
+            Toast.makeText(MainActivity.this, "No estas conectado, no se puede Unsuscribir de:" + topic, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -302,9 +320,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private void setSubscription() {
         if (isConnected) {
             try {
+                client.subscribe("dispositivos/"+clientId+"/escucha/#", 0);
                 client.subscribe("dispositivos/chat", 0);
-                client.subscribe("$SYS/broker/connection/#",1);
-                //client.subscribe(topicStr+"/sensor",0);
+                client.subscribe("$SYS/broker/clients/connected",0);
                 //client.subscribe(topicStr+"/conexiones",0);
 
             } catch (MqttException e) {
@@ -315,28 +333,38 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         }
     }
 
-    public void connect(View v) {
+    public void connectToServer(){
+        //MqttConnectOptions options = new MqttConnectOptions();
+        //options.setUserName(USERNAME);
+        //options.setPassword(PASSWORD.toCharArray());
         try {
             //IMqttToken token = client.connect(options);
             IMqttToken token = client.connect();
             token.setActionCallback(new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
-                    Toast.makeText(MainActivity.this, "Conectado", Toast.LENGTH_LONG).show();
+                    Toast.makeText(MainActivity.this, "Conectado a: " +MQTTHOST.toString(), Toast.LENGTH_LONG).show();
                     isConnected = true;
+                    texserver.setText("server online");
+                    sendMensaje("conexiones/clients/id",clientId.toString());
                     setSubscription();
                 }
 
                 @Override
                 public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Toast.makeText(MainActivity.this, "Conección falló", Toast.LENGTH_LONG).show();
+                    Toast.makeText(MainActivity.this, "Conección falló a: " +MQTTHOST.toString(), Toast.LENGTH_LONG).show();
                     isConnected = false;
+                    texserver.setText("server offline");
 
                 }
             });
         } catch (MqttException e) {
             e.printStackTrace();
         }
+    }
+
+    public void connect(View v) {
+        connectToServer();
     }
 
     public void disconnect(View v) {
@@ -374,7 +402,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         acclZ = sensorEvent.values[2];
         String result = getAccelerometerReading();
         textViewcoor.setText(result);
-        //sendMensaje("aaa",result);
+
+        sendMensaje("dispositivos/"+clientId.toString()+"/sensores/acc",result);
 
 
         //Log.v(TAG, "dfffffff=" + acclX);

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceCategory android:title="|||||||| Server ||||||||">
+
+        <EditTextPreference
+            android:defaultValue="0.tcp.ngrok.io"
+            android:key="host_text_preference"
+            android:selectAllOnFocus="true"
+            android:singleLine="true"
+            android:summary="MQTT Host"
+            android:title="Host" />
+        <EditTextPreference
+            android:defaultValue="1883"
+            android:key="port_text_preference"
+            android:selectAllOnFocus="true"
+            android:singleLine="true"
+            android:title="Port" />
+    </PreferenceCategory>
+</PreferenceScreen>
